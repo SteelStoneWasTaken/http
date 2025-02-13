@@ -1,8 +1,9 @@
 use std::io::{Write, Read};
 use std::net::TcpListener;
 use std::thread;
+use std::fs::File;
 
-mod page;
+mod pages;
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
@@ -15,6 +16,8 @@ fn main() {
             let s = stream.read(&mut buffer).unwrap();
             let info = String::from_utf8_lossy(&buffer[..s]);
 
+            println!("{info}");
+
             let path = info
                 .lines().next().unwrap()
                 .split_whitespace().nth(1).unwrap();
@@ -24,9 +27,22 @@ fn main() {
 
             if   path.ends_with(".css") { content_type = "text/css" } else
             if   path.ends_with(".js")  { content_type = "application/javascript" }
-            else {
-                content_type = "text/html";
-                content = page::get(path);
+            else {content_type = "text/html";}
+
+            if content_type == "text/html" {
+                content = pages::get(path);
+            } else {
+                match File::open(format!("resources{path}")) {
+                    Ok(mut file) => {
+                        if let Err(e) = file.read_to_string(&mut content) {
+                            eprintln!("Erro ao ler o arquivo: {}", e);
+                        }
+                    }, 
+                    Err(e) => {
+                        eprintln!("Erro ao abrir o arquivo: {}", e);
+                        return;
+                    }
+                };
             }
 
             stream.write_all(&response(
